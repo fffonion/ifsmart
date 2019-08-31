@@ -156,12 +156,12 @@ class Smart(object):
     def __init__(self, poll_interval=60):
         self.rules = __import__("config").rules
         for r in self.rules:
-            r.callback = lambda *_: self.evaluate(r)
+            r.callback = lambda rr=r: self.evaluate(rr)
         self.poll_interval = poll_interval
     
     def evaluate(self, rule):
         logging.debug("evaluating rule \"%s\"" % rule.name)
-        gevent.spawn(rule.do)
+        rule.do()
 
     def run(self):
         while True:
