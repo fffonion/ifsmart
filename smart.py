@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+import gevent
 import traceback
 
 triggers = {}
@@ -110,6 +111,9 @@ class Trigger(Plugin):
         self.reverse = reverse
 
         self.last_state = None
+    
+    def register(self, *args, **kwargs):
+        self._.register(*args, **kwargs)
 
     def wrap(self, *args, **kwargs):
         ff = Plugin.wrap(self, *args, **kwargs)
@@ -151,14 +155,20 @@ class Operation(Plugin):
 class Smart(object):
     def __init__(self, poll_interval=60):
         self.rules = __import__("config").rules
+        for r in self.rules:
+            r.callback = lambda *_: self.evaluate(r)
         self.poll_interval = poll_interval
     
+    def evaluate(self, rule):
+        logging.debug("evaluating rule \"%s\"" % rule.name)
+        gevent.spawn(rule.do)
+
     def run(self):
         while True:
             for rule in self.rules:
-                logging.debug("evaluating rule \"%s\"" % rule.name)
-                rule.do()
-            time.sleep(self.poll_interval)
+                if not rule.has_registered:
+                    self.evaluate(rule)
+            gevent.sleep(self.poll_interval)
 
 
 class Rule(object):
@@ -166,6 +176,8 @@ class Rule(object):
         self.name = name
         self.triggers = {}
         self.operations = {}
+        self.callback = lambda: None
+        self.has_registered = False
     
     def do(self):
         do = True
@@ -212,6 +224,15 @@ class Rule(object):
             wrap(*args, **kwargs))
         return self
 
+    def On(self, name, *args):
+        self.has_registered = True
+        Trigger(name).register(lambda: self._real_callback(name), *args)
+        return self
+
+    def _real_callback(self, name, *args):
+        logging.info("trigger \"%s\" invokes evalution of rule \"%s\" " % (name, self.name))
+        return self.callback()
+
     def Then(self, name, *args, **kwargs):
         suffix = ""
         cnt = 0
@@ -221,9 +242,11 @@ class Rule(object):
         self.operations[name+suffix] = Operation(name).wrap(*args, **kwargs)
         return self
 
-logging = sys.modules['logging'] = Logging('logging')
+logging = Logging('logging')
 
 if __name__ == "__main__":
-    Smart(60).run()
-
+    try:
+        Smart(60).run()
+    except KeyboardInterrupt:
+        logging.debug("exiting...")
 

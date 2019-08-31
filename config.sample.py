@@ -8,6 +8,11 @@ rules = (
     Not("later_than", 23, 00).
     Once("device_online", "Macbook", "iPhone", op="or").
     Then("plug", "on", "lamp").
-    Then("plug", "off", "computer")
+    Then("plug", "off", "computer"),
+
+  _("leave home button").
+    On("dash", "dash-button-mac-address").
+    Then("plug", "flip", "lamp").
+    Then("plug", "flip", "computer"),
 
 )
