@@ -155,8 +155,6 @@ class Operation(Plugin):
 class Smart(object):
     def __init__(self, poll_interval=60):
         self.rules = __import__("config").rules
-        for r in self.rules:
-            r.callback = lambda rr=r: self.evaluate(rr)
         self.poll_interval = poll_interval
     
     def evaluate(self, rule):
@@ -166,6 +164,7 @@ class Smart(object):
     def run(self):
         while True:
             for rule in self.rules:
+                # skip rule that are event triggered
                 if not rule.has_registered:
                     self.evaluate(rule)
             gevent.sleep(self.poll_interval)
@@ -176,7 +175,6 @@ class Rule(object):
         self.name = name
         self.triggers = {}
         self.operations = {}
-        self.callback = lambda: None
         self.has_registered = False
     
     def do(self):
@@ -231,7 +229,7 @@ class Rule(object):
 
     def _real_callback(self, name, *args):
         logging.info("trigger \"%s\" invokes evalution of rule \"%s\" " % (name, self.name))
-        return self.callback()
+        return self.do()
 
     def Then(self, name, *args, **kwargs):
         suffix = ""
