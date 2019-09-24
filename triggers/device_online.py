@@ -14,5 +14,4 @@ def call(*addresses, **kwargs):
             ret = ret and now
         else:
             ret = ret or now
-        print(addr, ret, now)
     return ret

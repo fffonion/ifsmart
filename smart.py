@@ -100,7 +100,7 @@ class Plugin(object):
             try:
                 return self._.call(*args, **kwargs)
             except:
-                logging.exception("%s %s errored" % (self.typ, self.name))
+                logging.exception("- %s %s errored" % (self.typ, self.name))
             return False
         return f
 
@@ -121,7 +121,7 @@ class Trigger(Plugin):
             state = ff()
             if not self.onchange:
                 if state == -1: # error
-                    logging.debug("%s %s %s returned error state" % (
+                    logging.debug("- %s %s %s returned error state" % (
                       self.name, args, kwargs,  
                     ))
                     result = False
@@ -158,7 +158,7 @@ class Smart(object):
         self.poll_interval = poll_interval
     
     def evaluate(self, rule):
-        logging.debug("evaluating rule \"%s\"" % rule.name)
+        logging.debug("* evaluating rule \"%s\"" % rule.name)
         rule.do()
 
     def run(self):
@@ -176,26 +176,36 @@ class Rule(object):
         self.triggers = {}
         self.operations = {}
         self.has_registered = False
+        self.last_for = 0
+        self._first_seen_passed = 0
     
     def do(self):
         do = True
         for t in self.triggers:
             if not self.triggers[t]():
-                logging.debug("rule terminated at trigger \"%s\"" % t)
+                logging.debug("- rule terminated at trigger \"%s\"" % t)
                 do = False
                 break
         if do:
-            logging.info("rule \"%s\" passed" % self.name)
+            logging.info("+ rule \"%s\" passed" % self.name)
+            if self._first_seen_passed == 0:
+                self._first_seen_passed = time.time()
+            passed = time.time() - self._first_seen_passed
+            if passed < self.last_for: 
+                logging.debug("- rule waiting for mature: %ds passed" % passed)
+                return
             for o in self.operations:
                 name, args, kwargs = self.operations[o](info_only=True)
-                logging.debug("execute %s %s %s" % (
+                logging.debug("+ execute %s %s %s" % (
                     name, args, kwargs,
                 ))
                 r = self.operations[o]()
                 if r != None:
-                    logging.debug("execute %s returned: %s" % (
+                    logging.debug("+ execute %s returned: %s" % (
                         name, r,
                     ))
+        else:
+            self._first_seen_passed = 0
 
     def add_trigger(self, name, t):
         suffix = ""
@@ -228,8 +238,12 @@ class Rule(object):
         return self
 
     def _real_callback(self, name, *args):
-        logging.info("trigger \"%s\" invokes evalution of rule \"%s\" " % (name, self.name))
+        logging.info("* trigger \"%s\" invokes evalution of rule \"%s\" " % (name, self.name))
         return self.do()
+
+    def LastFor(self, h=0, m=0, s=0):
+        self.last_for = h * 3600 + m * 60 + s
+        return self
 
     def Then(self, name, *args, **kwargs):
         suffix = ""
